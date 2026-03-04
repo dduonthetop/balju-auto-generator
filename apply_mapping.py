@@ -96,7 +96,15 @@ def cleanup_old_backups(target_file: Path, keep_count: int) -> int:
     return deleted
 
 
-def map_option_to_spec(option_text: str) -> Optional[str]:
+def map_option_to_spec(option_text: str, product_code: str = "") -> Optional[str]:
+    code = (product_code or "").strip()
+    if code == "SOEN24854874":
+        return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea"
+    if code == "SOEN85705636":
+        return "쿠키슈 4입-02ea"
+    if code == "SOEN92173485":
+        return "바나나칩-08ea"
+
     text = (option_text or "").strip()
     if not text:
         return None
@@ -189,7 +197,8 @@ def build_output_rows(
         except Exception:
             qty = 0
 
-        spec_name = map_option_to_spec(option_name)
+        product_code = str(row.get("상품코드") or "").strip()
+        spec_name = map_option_to_spec(option_name, product_code=product_code)
         supply_price: Optional[int] = price_table.get(spec_name) if spec_name else None
         item_name = spec_name if spec_name else option_name
         if qty <= 0:

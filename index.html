@@ -118,7 +118,12 @@
       return w;
     }
 
-    function mapOptionToSpec(optionText) {
+    function mapOptionToSpec(optionText, productCode) {
+      const code = (productCode || "").trim();
+      if (code === "SOEN24854874") return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea";
+      if (code === "SOEN85705636") return "쿠키슈 4입-02ea";
+      if (code === "SOEN92173485") return "바나나칩-08ea";
+
       const text = (optionText || "").trim();
       if (!text) return null;
       if (text.includes("3종 혼합")) return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea";
@@ -256,7 +261,7 @@
         const outputRows = [];
         const summaryRows = [];
         for (const row of sourceRows) {
-          const spec = mapOptionToSpec(row.option);
+          const spec = mapOptionToSpec(row.option, row.productCode);
           const unitPrice = spec ? (priceTable.get(spec) || null) : null;
           const itemName = spec || row.option;
           if (row.qty <= 0) continue;
