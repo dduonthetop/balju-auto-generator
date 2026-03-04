@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: balju-auto-generator-api
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python automatic_server.py"
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
