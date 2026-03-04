@@ -303,6 +303,7 @@
             const cell = rr.getCell(c);
             cell.value = outputRows[i][c - 1];
             cell.style = cloneStyle(anchorStyle);
+            cell.font = Object.assign({}, cell.font || {}, { size: 11 });
             cell.fill = undefined;
           }
           rr.height = anchorHeight;
