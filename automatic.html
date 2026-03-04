@@ -301,6 +301,15 @@
         }
 
         const newLast = 1 + outputRows.length;
+        for (let r = 1; r <= newLast; r++) {
+          const rr = detailWs.getRow(r);
+          for (let c = 1; c <= 15; c++) {
+            const cell = rr.getCell(c);
+            const currentFont = cell.font ? Object.assign({}, cell.font) : {};
+            currentFont.size = 11;
+            cell.font = currentFont;
+          }
+        }
         for (let r = newLast + 1; r <= oldLast; r++) {
           const rr = detailWs.getRow(r);
           for (let c = 1; c <= 15; c++) {

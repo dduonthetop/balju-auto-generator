@@ -301,6 +301,14 @@ def enforce_detail_font_size(ws, start_row: int, row_count: int, font_size: floa
             cell.font = font
 
 
+def enforce_row_font_size(ws, row_idx: int, min_col: int = 1, max_col: int = 15, font_size: float = 11.0) -> None:
+    for c in range(min_col, max_col + 1):
+        cell = ws.cell(row=row_idx, column=c)
+        font = copy(cell.font)
+        font.sz = font_size
+        cell.font = font
+
+
 def find_style_template_row(ws, min_row: int = 2, max_row: int = 200) -> int:
     upper = min(max_row, ws.max_row)
     for r in range(min_row, upper + 1):
@@ -495,6 +503,7 @@ def main() -> None:
         start_row=2,
         row_count=len(output_rows),
     )
+    enforce_row_font_size(ws_detail, row_idx=1, min_col=1, max_col=15, font_size=11.0)
     enforce_detail_font_size(ws_detail, start_row=2, row_count=len(output_rows), font_size=11.0)
     new_last_row = 1 + len(output_rows)
     clear_rows_values_only(ws_detail, start_row=new_last_row + 1, end_row=old_last_row)
