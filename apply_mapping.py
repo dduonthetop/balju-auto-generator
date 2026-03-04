@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 import unicodedata
+import re
 
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
@@ -16,10 +17,17 @@ from openpyxl.utils import get_column_letter
 SENDER_NAME = "스미후루코리아"
 COURIER_NAME = "롯데택배"
 BACKUP_KEEP_COUNT = 3
+INVALID_XML_CHAR_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]")
 
 
 def is_temp_excel(path: Path) -> bool:
     return path.name.startswith("~$")
+
+
+def sanitize_text(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return INVALID_XML_CHAR_RE.sub("", value)
 
 
 def find_target_file(base: Path) -> Path:
@@ -152,16 +160,16 @@ def extract_source_rows(source_files: List[Path]) -> List[Dict[str, Any]]:
             if order_no in (None, ""):
                 continue
             row = {
-                "주문번호": ws.cell(row=r, column=1).value,
-                "주문상품고유번호": ws.cell(row=r, column=3).value,
-                "수령인명": ws.cell(row=r, column=6).value,
-                "수령인연락처": ws.cell(row=r, column=7).value,
-                "우편번호": ws.cell(row=r, column=8).value,
-                "주소": ws.cell(row=r, column=9).value,
-                "상품코드": ws.cell(row=r, column=10).value,
-                "고객선택옵션": ws.cell(row=r, column=12).value,
+                "주문번호": sanitize_text(ws.cell(row=r, column=1).value),
+                "주문상품고유번호": sanitize_text(ws.cell(row=r, column=3).value),
+                "수령인명": sanitize_text(ws.cell(row=r, column=6).value),
+                "수령인연락처": sanitize_text(ws.cell(row=r, column=7).value),
+                "우편번호": sanitize_text(ws.cell(row=r, column=8).value),
+                "주소": sanitize_text(ws.cell(row=r, column=9).value),
+                "상품코드": sanitize_text(ws.cell(row=r, column=10).value),
+                "고객선택옵션": sanitize_text(ws.cell(row=r, column=12).value),
                 "주문수량": ws.cell(row=r, column=13).value,
-                "배송시 요청사항": ws.cell(row=r, column=16).value,
+                "배송시 요청사항": sanitize_text(ws.cell(row=r, column=16).value),
             }
             rows.append(row)
         wb.close()
@@ -197,10 +205,11 @@ def build_output_rows(
         except Exception:
             qty = 0
 
-        product_code = str(row.get("상품코드") or "").strip()
+        product_code = sanitize_text(str(row.get("상품코드") or "").strip())
         spec_name = map_option_to_spec(option_name, product_code=product_code)
+        spec_name = sanitize_text(spec_name)
         supply_price: Optional[int] = price_table.get(spec_name) if spec_name else None
-        item_name = spec_name if spec_name else option_name
+        item_name = sanitize_text(spec_name if spec_name else option_name)
         if qty <= 0:
             warnings.append(
                 f"[수량이상] 주문상품고유번호={row.get('주문상품고유번호')} 주문수량={qty_raw}"
@@ -224,18 +233,18 @@ def build_output_rows(
             output_rows.append(
                 [
                     SENDER_NAME,  # A 보내는분
-                    row.get("수령인명"),  # B 받는사람
-                    row.get("수령인연락처"),  # C 받으시는분 전화
-                    row.get("주소"),  # D 받는분 총주소
+                    sanitize_text(row.get("수령인명")),  # B 받는사람
+                    sanitize_text(row.get("수령인연락처")),  # C 받으시는분 전화
+                    sanitize_text(row.get("주소")),  # D 받는분 총주소
                     1,  # E 수량(고정)
                     item_name,  # F 품목명(품명 및 규격 기준)
-                    str(row.get("우편번호") or ""),  # G 우편번호
-                    row.get("배송시 요청사항"),  # H 특이사항
+                    sanitize_text(str(row.get("우편번호") or "")),  # G 우편번호
+                    sanitize_text(row.get("배송시 요청사항")),  # H 특이사항
                     amount_per_row,  # I 금액(1개 단가)
                     None,  # J 송장번호 (공란)
-                    row.get("주문번호"),  # K 주문번호
-                    row.get("주문상품고유번호"),  # L 주문상품고유번호
-                    row.get("상품코드"),  # M 상품코드
+                    sanitize_text(row.get("주문번호")),  # K 주문번호
+                    sanitize_text(row.get("주문상품고유번호")),  # L 주문상품고유번호
+                    sanitize_text(row.get("상품코드")),  # M 상품코드
                     COURIER_NAME,  # N 택배사
                     None,  # O 배송번호 (공란)
                 ]
