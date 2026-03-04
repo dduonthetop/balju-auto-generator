@@ -39,16 +39,8 @@
     .hidden { display: none; }
     .error { color: #b91c1c; }
     .ok { color: #047857; }
-    .api-box { margin-top: 14px; }
-    .api-box input {
-      width: 100%;
-      box-sizing: border-box;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 14px;
-    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 </head>
 <body>
   <main class="wrap">
@@ -59,14 +51,14 @@
         <div class="upload-box">
           <strong>1) 기준 파일 업로드</strong>
           <p>연테이블 공동구매 기준 파일 1개를 선택하세요.</p>
-          <input id="targetFile" name="targetFile" type="file" accept=".xlsx,.xls" required>
+          <input id="targetFile" type="file" accept=".xlsx,.xls" required>
           <div id="targetFileInfo" class="file-list">선택된 파일 없음</div>
         </div>
 
         <div class="upload-box">
           <strong>2) 참고 파일 업로드</strong>
           <p>주식회사지엠 참고 파일들을 여러 개 선택하세요.</p>
-          <input id="sourceFiles" name="sourceFiles" type="file" accept=".xlsx,.xls" multiple required>
+          <input id="sourceFiles" type="file" accept=".xlsx,.xls" multiple required>
           <div id="sourceFilesInfo" class="file-list">선택된 파일 없음</div>
         </div>
 
@@ -75,12 +67,7 @@
         </div>
       </form>
 
-      <div class="api-box">
-        <p>API 서버 주소</p>
-        <input id="apiBase" type="text" value="">
-      </div>
-
-      <div id="result" class="result">
+      <div class="result">
         <div id="status" class="status">생성 대기 중</div>
         <a id="downloadBtn" class="download-btn hidden" href="#" download>4) 생성 파일 다운로드</a>
       </div>
@@ -88,6 +75,9 @@
   </main>
 
   <script>
+    const SENDER_NAME = "스미후루코리아";
+    const COURIER_NAME = "롯데택배";
+
     const form = document.getElementById("generatorForm");
     const runBtn = document.getElementById("runBtn");
     const targetInput = document.getElementById("targetFile");
@@ -96,15 +86,77 @@
     const sourceInfo = document.getElementById("sourceFilesInfo");
     const statusEl = document.getElementById("status");
     const downloadBtn = document.getElementById("downloadBtn");
-    const apiBaseInput = document.getElementById("apiBase");
 
     let downloadUrl = null;
-    const savedApi = localStorage.getItem("balju_api_base") || `${location.protocol}//${location.host}`;
-    apiBaseInput.value = savedApi;
 
-    apiBaseInput.addEventListener("change", () => {
-      localStorage.setItem("balju_api_base", apiBaseInput.value.trim());
-    });
+    function cloneStyle(style) {
+      return JSON.parse(JSON.stringify(style || {}));
+    }
+
+    function toText(v) {
+      if (v == null) return "";
+      if (typeof v === "object") {
+        if (Array.isArray(v.richText)) return v.richText.map((x) => x.text || "").join("");
+        if (v.text != null) return String(v.text);
+        if (v.result != null) return String(v.result);
+        if (v.formula != null && v.result != null) return String(v.result);
+      }
+      return String(v);
+    }
+
+    function toInt(v) {
+      const n = Number(toText(v).replace(/,/g, "").trim());
+      return Number.isFinite(n) ? Math.trunc(n) : 0;
+    }
+
+    function eastAsianWidth(text) {
+      let w = 0;
+      for (const ch of text) {
+        if (/[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch)) w += 2;
+        else w += 1;
+      }
+      return w;
+    }
+
+    function mapOptionToSpec(optionText) {
+      const text = (optionText || "").trim();
+      if (!text) return null;
+      if (text.includes("3종 혼합")) return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea";
+      if (text.includes("김맛")) return "바나밥 시즈닝 바나나칩 김맛-09ea";
+      if (text.includes("샤워크림") || text.includes("어니언")) return "바나밥 시즈닝 바나나칩 샤워크림앤어니언맛-09ea";
+      if (text.includes("솔티드카라멜")) return "바나밥 시즈닝 바나나칩 솔티드카라멜맛-09ea";
+      if (text.includes("쿠키슈")) return "쿠키슈 4입-02ea";
+      if (text.includes("바삭 바나나칩") || text.includes("바나나칩 70g x 8입")) return "바나나칩-08ea";
+      return null;
+    }
+
+    function getLastUsedRow(ws, maxCol) {
+      for (let r = ws.rowCount; r >= 1; r--) {
+        const row = ws.getRow(r);
+        let hasValue = false;
+        for (let c = 1; c <= maxCol; c++) {
+          if (toText(row.getCell(c).value) !== "") {
+            hasValue = true;
+            break;
+          }
+        }
+        if (hasValue) return r;
+      }
+      return 1;
+    }
+
+    function autoFitColumns(ws, minCol, maxCol, maxRow) {
+      for (let c = minCol; c <= maxCol; c++) {
+        let maxW = 8;
+        for (let r = 1; r <= maxRow; r++) {
+          const txt = toText(ws.getRow(r).getCell(c).value).replace(/\n/g, " ");
+          if (!txt) continue;
+          const w = eastAsianWidth(txt);
+          if (w > maxW) maxW = w;
+        }
+        ws.getColumn(c).width = (maxW * 1.15) + 2;
+      }
+    }
 
     targetInput.addEventListener("change", () => {
       if (!targetInput.files || targetInput.files.length === 0) {
@@ -123,8 +175,16 @@
       sourceInfo.textContent = names.join("\n");
     });
 
+    async function loadWorkbook(file) {
+      const wb = new ExcelJS.Workbook();
+      const ab = await file.arrayBuffer();
+      await wb.xlsx.load(ab);
+      return wb;
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+
       if (!targetInput.files || targetInput.files.length !== 1) {
         statusEl.textContent = "기준 파일 1개를 선택하세요.";
         statusEl.className = "status error";
@@ -146,28 +206,170 @@
         downloadUrl = null;
       }
 
-      const fd = new FormData();
-      fd.append("targetFile", targetInput.files[0]);
-      Array.from(sourceInput.files).forEach((f) => fd.append("sourceFiles", f));
-
       try {
-        const apiBase = (apiBaseInput.value || "").trim().replace(/\/+$/, "");
-        localStorage.setItem("balju_api_base", apiBase);
-        const res = await fetch(`${apiBase}/generate`, { method: "POST", body: fd });
-        if (!res.ok) {
-          const msg = await res.text();
-          throw new Error(msg || "생성 실패");
+        const targetFile = targetInput.files[0];
+        const sourceFiles = Array.from(sourceInput.files);
+
+        const targetWb = await loadWorkbook(targetFile);
+        const detailWs = targetWb.getWorksheet("발주서및송장번호") || targetWb.worksheets[0];
+        const summaryWs = targetWb.getWorksheet("제품명 및 금액자료") || targetWb.worksheets[1];
+        if (!detailWs || !summaryWs) throw new Error("기준 파일의 시트 구성이 올바르지 않습니다.");
+
+        const priceTable = new Map();
+        for (let r = 1; r <= summaryWs.rowCount; r++) {
+          const spec = toText(summaryWs.getRow(r).getCell(1).value).trim();
+          const price = toInt(summaryWs.getRow(r).getCell(7).value);
+          if (!spec || spec === "TTL") continue;
+          if (price > 0) priceTable.set(spec, price);
         }
 
-        const blob = await res.blob();
-        downloadUrl = URL.createObjectURL(blob);
-        const filename = res.headers.get("X-Output-Filename") || "generated.xlsx";
+        const dedup = new Map();
+        for (const sf of sourceFiles) {
+          const swb = await loadWorkbook(sf);
+          const ws = swb.getWorksheet("Supply") || swb.worksheets[0];
+          if (!ws) continue;
+          for (let r = 2; r <= ws.rowCount; r++) {
+            const orderNo = toText(ws.getRow(r).getCell(1).value).trim();
+            if (!orderNo) continue;
+            const key = toText(ws.getRow(r).getCell(3).value).trim();
+            if (!key) continue;
+            dedup.set(key, {
+              orderNo,
+              orderItemId: key,
+              receiver: toText(ws.getRow(r).getCell(6).value),
+              receiverPhone: toText(ws.getRow(r).getCell(7).value),
+              zip: toText(ws.getRow(r).getCell(8).value),
+              address: toText(ws.getRow(r).getCell(9).value),
+              productCode: toText(ws.getRow(r).getCell(10).value),
+              option: toText(ws.getRow(r).getCell(12).value),
+              qty: toInt(ws.getRow(r).getCell(13).value),
+              note: toText(ws.getRow(r).getCell(16).value),
+            });
+          }
+        }
 
+        const sourceRows = Array.from(dedup.values()).sort((a, b) => {
+          if (a.orderNo !== b.orderNo) return a.orderNo.localeCompare(b.orderNo);
+          return a.orderItemId.localeCompare(b.orderItemId);
+        });
+
+        const outputRows = [];
+        const summaryRows = [];
+        for (const row of sourceRows) {
+          const spec = mapOptionToSpec(row.option);
+          const unitPrice = spec ? (priceTable.get(spec) || null) : null;
+          if (row.qty <= 0) continue;
+          for (let i = 0; i < row.qty; i++) {
+            outputRows.push([
+              SENDER_NAME,
+              row.receiver,
+              row.receiverPhone,
+              row.address,
+              1,
+              row.option,
+              row.zip,
+              row.note || null,
+              unitPrice,
+              null,
+              row.orderNo,
+              row.orderItemId,
+              row.productCode,
+              COURIER_NAME,
+              null,
+            ]);
+            summaryRows.push({ spec, qty: 1, amount: unitPrice || 0 });
+          }
+        }
+
+        const oldLast = getLastUsedRow(detailWs, 15);
+        const anchorStyle = cloneStyle(detailWs.getRow(2).getCell(1).style);
+        const anchorHeight = detailWs.getRow(2).height;
+
+        for (let r = 2; r <= oldLast; r++) {
+          const rr = detailWs.getRow(r);
+          for (let c = 1; c <= 15; c++) rr.getCell(c).value = null;
+        }
+
+        for (let i = 0; i < outputRows.length; i++) {
+          const r = 2 + i;
+          const rr = detailWs.getRow(r);
+          for (let c = 1; c <= 15; c++) {
+            const cell = rr.getCell(c);
+            cell.value = outputRows[i][c - 1];
+            cell.style = cloneStyle(anchorStyle);
+            cell.fill = undefined;
+          }
+          rr.height = anchorHeight;
+          rr.getCell(9).numFmt = "₩#,##0";
+        }
+
+        const newLast = 1 + outputRows.length;
+        for (let r = newLast + 1; r <= oldLast; r++) {
+          const rr = detailWs.getRow(r);
+          for (let c = 1; c <= 15; c++) {
+            rr.getCell(c).value = null;
+            rr.getCell(c).fill = undefined;
+          }
+        }
+
+        for (let r = 2; r <= Math.max(oldLast, newLast); r++) {
+          const rr = detailWs.getRow(r);
+          for (let c = 1; c <= 15; c++) rr.getCell(c).fill = undefined;
+        }
+
+        summaryWs.getRow(2).getCell(8).value = "발주수량";
+        summaryWs.getRow(2).getCell(9).value = "금액(원)";
+
+        const specToRow = new Map();
+        let ttlRow = null;
+        for (let r = 1; r <= summaryWs.rowCount; r++) {
+          const name = toText(summaryWs.getRow(r).getCell(1).value).trim();
+          if (!name) continue;
+          if (name === "TTL") { ttlRow = r; continue; }
+          if (r <= 2) continue;
+          const g = toInt(summaryWs.getRow(r).getCell(7).value);
+          if (g <= 0) continue;
+          specToRow.set(name, r);
+        }
+
+        const qtyMap = new Map();
+        const amtMap = new Map();
+        for (const x of summaryRows) {
+          if (!x.spec) continue;
+          qtyMap.set(x.spec, (qtyMap.get(x.spec) || 0) + x.qty);
+          amtMap.set(x.spec, (amtMap.get(x.spec) || 0) + x.amount);
+        }
+
+        for (const [spec, rowNo] of specToRow.entries()) {
+          const qty = qtyMap.get(spec) || 0;
+          const amt = amtMap.get(spec) || 0;
+          summaryWs.getRow(rowNo).getCell(8).value = qty;
+          summaryWs.getRow(rowNo).getCell(9).value = amt;
+          summaryWs.getRow(rowNo).getCell(9).numFmt = "₩#,##0";
+        }
+
+        if (ttlRow) {
+          const rows = Array.from(specToRow.values()).sort((a, b) => a - b);
+          if (rows.length > 0) {
+            const first = rows[0], last = rows[rows.length - 1];
+            summaryWs.getRow(ttlRow).getCell(8).value = { formula: `SUM(H${first}:H${last})` };
+            summaryWs.getRow(ttlRow).getCell(9).value = { formula: `SUM(I${first}:I${last})` };
+            summaryWs.getRow(ttlRow).getCell(9).numFmt = "₩#,##0";
+          }
+        }
+
+        autoFitColumns(detailWs, 1, 15, Math.max(newLast, detailWs.rowCount));
+        autoFitColumns(summaryWs, 1, 9, summaryWs.rowCount);
+
+        const outBuffer = await targetWb.xlsx.writeBuffer();
+        const blob = new Blob([outBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        downloadUrl = URL.createObjectURL(blob);
+        const outName = `generated_${targetFile.name.replace(/\s+/g, "_")}`;
         downloadBtn.href = downloadUrl;
-        downloadBtn.download = filename;
+        downloadBtn.download = outName;
         downloadBtn.classList.remove("hidden");
 
-        statusEl.textContent = `생성 완료: ${filename}`;
+        statusEl.textContent = `생성 완료: ${outName}`;
         statusEl.className = "status ok";
       } catch (err) {
         statusEl.textContent = `오류: ${err.message}`;
