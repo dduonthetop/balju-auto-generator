@@ -284,7 +284,6 @@
         }
 
         const oldLast = getLastUsedRow(detailWs, 15);
-        const anchorHeight = detailWs.getRow(2).height;
 
         for (let r = 2; r <= oldLast; r++) {
           const rr = detailWs.getRow(r);
@@ -298,7 +297,6 @@
             const cell = rr.getCell(c);
             cell.value = outputRows[i][c - 1];
           }
-          rr.height = anchorHeight;
           rr.getCell(9).numFmt = "₩#,##0";
         }
 
