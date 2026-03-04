@@ -191,6 +191,7 @@ def build_output_rows(
 
         spec_name = map_option_to_spec(option_name)
         supply_price: Optional[int] = price_table.get(spec_name) if spec_name else None
+        item_name = spec_name if spec_name else option_name
         if qty <= 0:
             warnings.append(
                 f"[수량이상] 주문상품고유번호={row.get('주문상품고유번호')} 주문수량={qty_raw}"
@@ -218,7 +219,7 @@ def build_output_rows(
                     row.get("수령인연락처"),  # C 받으시는분 전화
                     row.get("주소"),  # D 받는분 총주소
                     1,  # E 수량(고정)
-                    option_name,  # F 품목명
+                    item_name,  # F 품목명(품명 및 규격 기준)
                     str(row.get("우편번호") or ""),  # G 우편번호
                     row.get("배송시 요청사항"),  # H 특이사항
                     amount_per_row,  # I 금액(1개 단가)

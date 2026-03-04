@@ -258,6 +258,7 @@
         for (const row of sourceRows) {
           const spec = mapOptionToSpec(row.option);
           const unitPrice = spec ? (priceTable.get(spec) || null) : null;
+          const itemName = spec || row.option;
           if (row.qty <= 0) continue;
           for (let i = 0; i < row.qty; i++) {
             outputRows.push([
@@ -266,7 +267,7 @@
               row.receiverPhone,
               row.address,
               1,
-              row.option,
+              itemName,
               row.zip,
               row.note || null,
               unitPrice,
