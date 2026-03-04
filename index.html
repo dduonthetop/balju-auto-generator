@@ -89,10 +89,6 @@
 
     let downloadUrl = null;
 
-    function cloneStyle(style) {
-      return JSON.parse(JSON.stringify(style || {}));
-    }
-
     function toText(v) {
       if (v == null) return "";
       if (typeof v === "object") {
@@ -288,7 +284,6 @@
         }
 
         const oldLast = getLastUsedRow(detailWs, 15);
-        const anchorStyle = cloneStyle(detailWs.getRow(2).getCell(1).style);
         const anchorHeight = detailWs.getRow(2).height;
 
         for (let r = 2; r <= oldLast; r++) {
@@ -302,9 +297,6 @@
           for (let c = 1; c <= 15; c++) {
             const cell = rr.getCell(c);
             cell.value = outputRows[i][c - 1];
-            cell.style = cloneStyle(anchorStyle);
-            cell.font = Object.assign({}, cell.font || {}, { size: 11 });
-            cell.fill = undefined;
           }
           rr.height = anchorHeight;
           rr.getCell(9).numFmt = "₩#,##0";
@@ -315,13 +307,7 @@
           const rr = detailWs.getRow(r);
           for (let c = 1; c <= 15; c++) {
             rr.getCell(c).value = null;
-            rr.getCell(c).fill = undefined;
           }
-        }
-
-        for (let r = 2; r <= Math.max(oldLast, newLast); r++) {
-          const rr = detailWs.getRow(r);
-          for (let c = 1; c <= 15; c++) rr.getCell(c).fill = undefined;
         }
 
         summaryWs.getRow(2).getCell(8).value = "발주수량";
