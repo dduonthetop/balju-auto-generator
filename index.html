@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>스미후루 발주서 생성기</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #fff;
+      --line: #d8deea;
+      --text: #111827;
+      --sub: #6b7280;
+      --btn: #0b5fff;
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", "Malgun Gothic", sans-serif; }
+    .wrap { max-width: 860px; margin: 28px auto; padding: 0 16px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+    h1 { margin: 0 0 14px; font-size: 26px; }
+    .upload-box { border: 1px dashed #9ca3af; border-radius: 10px; background: #fafafa; padding: 14px; margin-top: 14px; }
+    .upload-box p { margin: 6px 0 8px; color: var(--sub); font-size: 14px; }
+    input[type="file"] { width: 100%; }
+    .file-list { margin-top: 8px; color: var(--sub); font-size: 14px; white-space: pre-line; }
+    .actions { margin-top: 18px; }
+    button, .download-btn {
+      display: inline-block;
+      background: var(--btn);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    button[disabled] { opacity: 0.6; cursor: wait; }
+    .result { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .status { font-size: 14px; color: var(--sub); margin-bottom: 10px; }
+    .hidden { display: none; }
+    .error { color: #b91c1c; }
+    .ok { color: #047857; }
+    .api-box { margin-top: 14px; }
+    .api-box input {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>스미후루 발주서 생성기</h1>
+
+      <form id="generatorForm">
+        <div class="upload-box">
+          <strong>1) 기준 파일 업로드</strong>
+          <p>연테이블 공동구매 기준 파일 1개를 선택하세요.</p>
+          <input id="targetFile" name="targetFile" type="file" accept=".xlsx,.xls" required>
+          <div id="targetFileInfo" class="file-list">선택된 파일 없음</div>
+        </div>
+
+        <div class="upload-box">
+          <strong>2) 참고 파일 업로드</strong>
+          <p>주식회사지엠 참고 파일들을 여러 개 선택하세요.</p>
+          <input id="sourceFiles" name="sourceFiles" type="file" accept=".xlsx,.xls" multiple required>
+          <div id="sourceFilesInfo" class="file-list">선택된 파일 없음</div>
+        </div>
+
+        <div class="actions">
+          <button id="runBtn" type="submit">3) 발주서 생성</button>
+        </div>
+      </form>
+
+      <div class="api-box">
+        <p>API 서버 주소</p>
+        <input id="apiBase" type="text" value="">
+      </div>
+
+      <div id="result" class="result">
+        <div id="status" class="status">생성 대기 중</div>
+        <a id="downloadBtn" class="download-btn hidden" href="#" download>4) 생성 파일 다운로드</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById("generatorForm");
+    const runBtn = document.getElementById("runBtn");
+    const targetInput = document.getElementById("targetFile");
+    const sourceInput = document.getElementById("sourceFiles");
+    const targetInfo = document.getElementById("targetFileInfo");
+    const sourceInfo = document.getElementById("sourceFilesInfo");
+    const statusEl = document.getElementById("status");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const apiBaseInput = document.getElementById("apiBase");
+
+    let downloadUrl = null;
+    const savedApi = localStorage.getItem("balju_api_base") || `${location.protocol}//${location.host}`;
+    apiBaseInput.value = savedApi;
+
+    apiBaseInput.addEventListener("change", () => {
+      localStorage.setItem("balju_api_base", apiBaseInput.value.trim());
+    });
+
+    targetInput.addEventListener("change", () => {
+      if (!targetInput.files || targetInput.files.length === 0) {
+        targetInfo.textContent = "선택된 파일 없음";
+        return;
+      }
+      targetInfo.textContent = `선택됨: ${targetInput.files[0].name}`;
+    });
+
+    sourceInput.addEventListener("change", () => {
+      if (!sourceInput.files || sourceInput.files.length === 0) {
+        sourceInfo.textContent = "선택된 파일 없음";
+        return;
+      }
+      const names = Array.from(sourceInput.files).map((f, i) => `${i + 1}. ${f.name}`);
+      sourceInfo.textContent = names.join("\n");
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!targetInput.files || targetInput.files.length !== 1) {
+        statusEl.textContent = "기준 파일 1개를 선택하세요.";
+        statusEl.className = "status error";
+        return;
+      }
+      if (!sourceInput.files || sourceInput.files.length < 1) {
+        statusEl.textContent = "참고 파일을 1개 이상 선택하세요.";
+        statusEl.className = "status error";
+        return;
+      }
+
+      runBtn.disabled = true;
+      statusEl.textContent = "엑셀 생성 중...";
+      statusEl.className = "status";
+      downloadBtn.classList.add("hidden");
+
+      if (downloadUrl) {
+        URL.revokeObjectURL(downloadUrl);
+        downloadUrl = null;
+      }
+
+      const fd = new FormData();
+      fd.append("targetFile", targetInput.files[0]);
+      Array.from(sourceInput.files).forEach((f) => fd.append("sourceFiles", f));
+
+      try {
+        const apiBase = (apiBaseInput.value || "").trim().replace(/\/+$/, "");
+        localStorage.setItem("balju_api_base", apiBase);
+        const res = await fetch(`${apiBase}/generate`, { method: "POST", body: fd });
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || "생성 실패");
+        }
+
+        const blob = await res.blob();
+        downloadUrl = URL.createObjectURL(blob);
+        const filename = res.headers.get("X-Output-Filename") || "generated.xlsx";
+
+        downloadBtn.href = downloadUrl;
+        downloadBtn.download = filename;
+        downloadBtn.classList.remove("hidden");
+
+        statusEl.textContent = `생성 완료: ${filename}`;
+        statusEl.className = "status ok";
+      } catch (err) {
+        statusEl.textContent = `오류: ${err.message}`;
+        statusEl.className = "status error";
+      } finally {
+        runBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
