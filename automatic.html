@@ -114,6 +114,12 @@
       return w;
     }
 
+    function normalizeOptionText(text) {
+      return (text || "")
+        .toLowerCase()
+        .replace(/[\s/(),._-]+/g, "");
+    }
+
     function mapOptionToSpec(optionText, productCode) {
       const code = (productCode || "").trim();
       if (code === "SOEN24854874") return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea";
@@ -122,12 +128,13 @@
 
       const text = (optionText || "").trim();
       if (!text) return null;
-      if (text.includes("3종 혼합")) return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea";
+      const normalized = normalizeOptionText(text);
+      if (text.includes("3종 혼합") || normalized.includes("3종혼합")) return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea";
       if (text.includes("김맛")) return "바나밥 시즈닝 바나나칩 김맛-09ea";
       if (text.includes("샤워크림") || text.includes("어니언")) return "바나밥 시즈닝 바나나칩 샤워크림앤어니언맛-09ea";
-      if (text.includes("솔티드카라멜")) return "바나밥 시즈닝 바나나칩 솔티드카라멜맛-09ea";
-      if (text.includes("쿠키슈")) return "쿠키슈 4입-02ea";
-      if (text.includes("바삭 바나나칩") || text.includes("바나나칩 70g x 8입")) return "바나나칩-08ea";
+      if (text.includes("솔티드카라멜") || normalized.includes("솔티드카라멜")) return "바나밥 시즈닝 바나나칩 솔티드카라멜맛-09ea";
+      if (text.includes("쿠키슈") || normalized.includes("바나나쿠키슈")) return "쿠키슈 4입-02ea";
+      if (text.includes("바삭 바나나칩") || text.includes("바나나칩 70g x 8입") || normalized.includes("바나나칩70gx8입")) return "바나나칩-08ea";
       return null;
     }
 

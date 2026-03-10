@@ -104,6 +104,12 @@ def cleanup_old_backups(target_file: Path, keep_count: int) -> int:
     return deleted
 
 
+def normalize_option_text(text: str) -> str:
+    text = (text or "").lower()
+    text = re.sub(r"[\s/(),._-]+", "", text)
+    return text
+
+
 def map_option_to_spec(option_text: str, product_code: str = "") -> Optional[str]:
     code = (product_code or "").strip()
     if code == "SOEN24854874":
@@ -116,18 +122,23 @@ def map_option_to_spec(option_text: str, product_code: str = "") -> Optional[str
     text = (option_text or "").strip()
     if not text:
         return None
+    normalized = normalize_option_text(text)
 
-    if "3종 혼합" in text:
+    if "3종 혼합" in text or "3종혼합" in normalized:
         return "바나밥 시즈닝 바나나칩 3종(어니언1+솔티드1+김1)-03ea"
     if "김맛" in text:
         return "바나밥 시즈닝 바나나칩 김맛-09ea"
     if "샤워크림" in text or "어니언" in text:
         return "바나밥 시즈닝 바나나칩 샤워크림앤어니언맛-09ea"
-    if "솔티드카라멜" in text:
+    if "솔티드카라멜" in text or "솔티드카라멜" in normalized:
         return "바나밥 시즈닝 바나나칩 솔티드카라멜맛-09ea"
-    if "쿠키슈" in text:
+    if "쿠키슈" in text or "바나나쿠키슈" in normalized:
         return "쿠키슈 4입-02ea"
-    if "바삭 바나나칩" in text or "바나나칩 70g x 8입" in text:
+    if (
+        "바삭 바나나칩" in text
+        or "바나나칩 70g x 8입" in text
+        or "바나나칩70gx8입" in normalized
+    ):
         return "바나나칩-08ea"
     return None
 
