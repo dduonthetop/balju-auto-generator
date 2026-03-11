@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import cgi
 import html
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
+from email.parser import BytesParser
+from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -21,6 +21,27 @@ PORT = int(os.getenv("PORT", "8765"))
 
 def safe_name(name: str) -> str:
     return Path(name).name.replace("\x00", "")
+
+
+def parse_multipart(content_type: str, body: bytes) -> dict[str, list[dict[str, object]]]:
+    message = BytesParser(policy=default).parsebytes(
+        f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8") + body
+    )
+    if not message.is_multipart():
+        raise ValueError("multipart/form-data 요청만 허용됩니다.")
+
+    files: dict[str, list[dict[str, object]]] = {}
+    for part in message.iter_parts():
+        name = part.get_param("name", header="content-disposition")
+        if not name:
+            continue
+        files.setdefault(name, []).append(
+            {
+                "filename": part.get_filename(),
+                "content": part.get_payload(decode=True) or b"",
+            }
+        )
+    return files
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -62,51 +83,55 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def handle_generate(self) -> None:
-        ctype, pdict = cgi.parse_header(self.headers.get("Content-Type", ""))
-        if ctype != "multipart/form-data":
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
             self.respond_text(400, "multipart/form-data 요청만 허용됩니다.")
             return
 
-        pdict["boundary"] = pdict["boundary"].encode("utf-8")
-        form = cgi.FieldStorage(
-            fp=self.rfile,
-            headers=self.headers,
-            environ={
-                "REQUEST_METHOD": "POST",
-                "CONTENT_TYPE": self.headers.get("Content-Type", ""),
-            },
-        )
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.respond_text(400, "잘못된 Content-Length 입니다.")
+            return
+        if content_length <= 0:
+            self.respond_text(400, "본문이 비어 있습니다.")
+            return
 
-        target_item = form["targetFile"] if "targetFile" in form else None
-        source_items = form["sourceFiles"] if "sourceFiles" in form else None
+        try:
+            form = parse_multipart(content_type, self.rfile.read(content_length))
+        except ValueError as exc:
+            self.respond_text(400, str(exc))
+            return
 
-        if target_item is None or not getattr(target_item, "filename", None):
+        target_items = form.get("targetFile", [])
+        source_items = form.get("sourceFiles", [])
+
+        if not target_items or not target_items[0].get("filename"):
             self.respond_text(400, "기준 파일(targetFile)이 없습니다.")
             return
 
-        if source_items is None:
+        if not source_items:
             self.respond_text(400, "참고 파일(sourceFiles)이 없습니다.")
             return
 
-        if not isinstance(source_items, list):
-            source_items = [source_items]
-        source_items = [s for s in source_items if getattr(s, "filename", None)]
+        source_items = [s for s in source_items if s.get("filename")]
         if not source_items:
             self.respond_text(400, "참고 파일(sourceFiles)이 없습니다.")
             return
 
         with tempfile.TemporaryDirectory(prefix="balju_auto_") as tmp:
             tmp_dir = Path(tmp)
-            target_name = safe_name(target_item.filename)
+            target_item = target_items[0]
+            target_name = safe_name(str(target_item["filename"]))
             target_path = tmp_dir / target_name
             with target_path.open("wb") as f:
-                shutil.copyfileobj(target_item.file, f)
+                f.write(target_item["content"])  # type: ignore[arg-type]
 
             for s in source_items:
-                src_name = safe_name(s.filename)
+                src_name = safe_name(str(s["filename"]))
                 src_path = tmp_dir / src_name
                 with src_path.open("wb") as f:
-                    shutil.copyfileobj(s.file, f)
+                    f.write(s["content"])  # type: ignore[arg-type]
 
             cmd = [
                 sys.executable,
