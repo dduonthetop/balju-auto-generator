@@ -3,3 +3,4 @@ __pycache__/
 *.bak_*.xlsx
 ~$*.xlsx
 *.xlsx
+gcm-diagnose.log
