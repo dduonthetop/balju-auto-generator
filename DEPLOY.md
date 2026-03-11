@@ -1,8 +1,8 @@
-# 배포 가이드 (GitHub Pages + API 서버)
+# 배포 가이드 (GitHub Pages 기준)
 
 ## 구조
-- 프론트: `automatic.html` -> GitHub Pages
-- 백엔드: `automatic_server.py` -> Render/Railway 같은 서버
+- 기본 사용: `index.html` / `automatic.html` -> GitHub Pages
+- 선택 서버: `automatic_server.py` -> Render/Railway 같은 서버
 
 ## 1) GitHub 저장소 생성 및 업로드
 ```powershell
@@ -24,7 +24,12 @@ git push -u origin main
    - 메인 페이지: `https://dduonthetop.github.io/balju-auto-generator/`
    - 직접 페이지: `https://dduonthetop.github.io/balju-auto-generator/automatic.html`
 
-## 3) API 서버 배포 (Render 예시)
+## 3) 사용 방법
+- GitHub Pages URL만 열면 된다.
+- 별도 API 서버 주소 입력은 필요 없다.
+- 기준 파일/참고 파일 업로드 후 바로 생성 가능하다.
+
+## 4) API 서버 배포 (선택 사항, Render 예시)
 1. Render에서 `New +` -> `Web Service`
 2. GitHub 저장소 연결
 3. 설정:
@@ -36,16 +41,10 @@ git push -u origin main
 4. 배포 후 서버 URL 확인:
    - 예: `https://balju-api.onrender.com`
 
-## 4) 프론트에서 API 주소 입력
-- GitHub Pages URL 접속
-- 화면의 `API 서버 주소`에 서버 URL 입력
-  - 예: `https://balju-api.onrender.com`
-- 기준파일/참고파일 업로드 후 생성
-
 ## 5) 현재 상태
 - GitHub Pages 메인 URL 응답 확인 완료: `https://dduonthetop.github.io/balju-auto-generator/`
-- Render는 저장소 연결과 첫 배포 승인에 계정 로그인이 필요하므로 브라우저에서 1회 진행해야 한다.
+- Render는 선택 사항이며, Python 3.13 호환 수정까지 반영 완료했다.
 
 ## 주의
-- GitHub Pages는 정적 사이트만 가능해서 `apply_mapping.py` 직접 실행 불가.
-- 반드시 API 서버가 따로 떠 있어야 업로드/생성/다운로드가 동작함.
+- 기본 배포는 GitHub Pages만 사용한다.
+- `automatic_server.py`는 필요할 때만 별도 서버로 띄운다.
